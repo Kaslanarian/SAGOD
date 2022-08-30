@@ -19,7 +19,7 @@ SAGOD (**S**tatic **A**ttributed **G**raph **O**utlier **D**etection) 是基于[
 
 `test.py`用各模型训练手动注入异常的MUTAG数据集，生成ROC曲线：
 
-![eval](src/eval.png)
+<img src="src/eval.png" alt="eval" style="zoom: 7%;" />
 
 ## Example
 
