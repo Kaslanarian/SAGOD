@@ -1,8 +1,6 @@
 # SAGOD:Static Attributed Graph Outlier Detection
 
-中文README : [cnREADME.md](./cnREADME.md).
-
-SAGOD (**S**tatic **A**ttributed **G**raph **O**utlier **D**etection) is an implementation of anomaly detection models on static attributed graph. Inspierd by [PyOD](https://github.com/yzhao062/pyod) and [PyGOD](https://github.com/pygod-team/pygod), we designed convenient interface to train model and make prediction. SAGOD support the following models:
+SAGOD (**S**tatic **A**ttributed **G**raph **O**utlier **D**etection) 是基于[PyG](https://www.pyg.org/)对静态属性图异常检测模型的实现。受[PyOD](https://github.com/yzhao062/pyod)和[PyGOD](https://github.com/pygod-team/pygod)的启发，我们设计了易于使用的接口。SAGOD实现了以下模型：
 
 - [x] [AdONE](#done) : Adversarial Outlier Aware Network Embedding;
 - [x] [ALARM](#alarm) : A deep multi-view framework for anomaly detection;
@@ -15,42 +13,28 @@ SAGOD (**S**tatic **A**ttributed **G**raph **O**utlier **D**etection) is an impl
 - [x] [ONE](#one) : Outlier Aware Network Embedding;
 - [x] [Radar](#radar) : Residual Analysis for Anomaly Detection in Attributed Networks.
 
-We are still updating and adding models. It's worth nothing that the original purpose of SAGOD is to implement anomaly detection models on graph, in order to help researchers who are interested in this area (including me).
+我们正在补充更多的模型实现。**SAGOD的目的是对模型论文的复现，以帮助对该方向感兴趣的研究者，提供便捷的接口只是副产物之一**。
 
 ## Overview
 
-In `test.py`, we generate anomaly data from MUTAG, and use different models to train it. The ROC curve is shown below:
+`test.py`用各模型训练手动注入异常的MUTAG数据集，生成ROC曲线：
 
 <div align=center><img src="src/eval.png" alt="eval" width="450"/></div>
 
-## Install
-
-```bash
-pip3 install sagod
-```
-
-or
-
-```bash
-git clone https://github.com/Kaslanarian/SAGOD
-cd SAGOD
-python3 setup.py install
-```
-
 ## Example
 
-Here is an example to use SAGOD:
+下面是SAGOD的使用例:
 
 ```python
 from sagod import DOMINANT
 from sagod.utils import struct_ano_injection, attr_ano_injection
 
-data = ... # Graph data, type:torch_geometric.data.Data
-data.y = torch.zeros(data.num_nodes)
-data = struct_ano_injection(data, 10, 10) # Structrual anomaly injection.
-data = attr_ano_injection(data, 100, 50) # Attributed anmaly injection.
+data = ... # 获取图数据，即torch_geometric.data.Data类型
+data.y = torch.zeros(data.num_nodes) # 定义标签
+data = struct_ano_injection(data, 10, 10) # 注入结构异常
+data = attr_ano_injection(data, 100, 50) # 注入属性异常
 
-model = DOMINANT(verbose=True).fit(data, data.y)
+model = DOMINANT(verbose=True).fit(data, data.y) # 输入每轮训练的损失和AUC值
 plt.plot(*roc_curve(data.y.numpy(), model.decision_scores_)[:2],
          label='DOMINANT') # 绘制ROC曲线
 plt.legend()
@@ -59,18 +43,18 @@ plt.show()
 
 ## Highlight
 
-Though SAGOD is similar to PyGOD, we keep innovating and improving:
+SAGOD与PyGOD有很大的重合，但我们也进行了创新和改进：
 
-- The model "ONE" in PyGOD was implemented based on [authors' responsitory](https://github.com/sambaranban/ONE). We improved it with vectorization, achieving a 100% performance improvement;
-- We implemented ALARM, which can detect anomaly in multi-view graph;
+- PyGOD的ONE模型采用了论文作者的实现，我们使用向量化进行改进，实现了100%的性能提升；
+- 我们实现了ALARM，能够对多视图进行异常检测；
 - ...
 
 ## Future Plan
 
-- Support batch mechanism and huge graph input;
-- Support GPU;
-- More models implementation;
-- Annotation and manual;
+- SAGOD目前只能整图输入，加入batch机制能够大大增加其泛用性;
+- 增加对GPU的支持；
+- 实现更多的模型，包括非深度模型；
+- 注释和手册
 - ...
 
 ## Reference
