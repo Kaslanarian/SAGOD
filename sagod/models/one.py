@@ -1,13 +1,14 @@
 from torch_geometric.data import Data
+from torch_geometric.utils import to_dense_adj
 
 import numpy as np
-from sklearn.base import OutlierMixin
+from pyod.models.base import BaseDetector
 from sklearn.metrics import roc_auc_score
 from sklearn.decomposition import NMF
-from util import predict_by_score
+from ..utils import predict_by_score
 
 
-class ONE(OutlierMixin):
+class ONE(BaseDetector):
     def __init__(
         self,
         K: int = 36,
@@ -21,7 +22,7 @@ class ONE(OutlierMixin):
         random_state=None,
         verbose: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__(contamination)
         self.K = K
         self.alpha = alpha
         self.beta = beta
@@ -29,14 +30,11 @@ class ONE(OutlierMixin):
         self.mu = mu
         self.iter = iter
         self.nmf_iter = nmf_iter
-        self.contamination = contamination
         self.random_state = random_state
         self.verbose = verbose
 
     def fit(self, G: Data, y=None):
-        A = np.zeros((G.num_nodes, G.num_nodes))
-        edge_index = G.edge_index
-        A[edge_index[0], edge_index[1]] = 1
+        A = to_dense_adj(G.edge_index, max_num_nodes=G.num_nodes)[0].numpy()
         C = G.x.numpy()
         N, D = C.shape
         assert self.K < min(N, D)
@@ -114,14 +112,16 @@ class ONE(OutlierMixin):
         self.U, self.V = U, V
         self.W = W
 
-        self.score = self.alpha * O[0] + self.beta * O[1] + self.gamma * O[2]
-        self.prediction = predict_by_score(self.score, self.contamination)
+        self.decision_scores_ = score
+        self.labels_, self.threshold_ = predict_by_score(
+            self.decision_scores_,
+            self.contamination,
+            True,
+        )
         return self
 
     def decision_function(self, G: Data):
-        A = np.zeros((G.num_nodes, G.num_nodes))
-        edge_index = G.edge_index
-        A[edge_index[0], edge_index[1]] = 1
+        A = to_dense_adj(G.edge_index, max_num_nodes=G.num_nodes)[0].numpy()
         C = G.x.numpy()
 
         O = np.zeros((3, G.num_nodes))

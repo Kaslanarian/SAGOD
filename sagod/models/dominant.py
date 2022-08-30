@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
 from torch.optim import Adam
-from torch_geometric.nn import GCNConv, Sequential
 from torch_geometric.data import Data
+from torch_geometric.utils import to_dense_adj
 
-from sklearn.base import OutlierMixin
+from pyod.models.base import BaseDetector
 from sklearn.metrics import roc_auc_score
-from util import predict_by_score
+from ..utils import predict_by_score, GCN
 
 
 class DOMINANT_MODEL(nn.Module):
@@ -27,9 +27,11 @@ class DOMINANT_MODEL(nn.Module):
         self.num_attr_dec_layer = num_attr_dec_layer
         self.act = act
 
-        self.enc = self.gen_enc()
-        self.stru_dec = self.gen_stru_dec()
-        self.attr_dec = self.gen_attr_dec()
+        self.enc = GCN(num_enc_layer, n_input, n_hidden, n_hidden, act)
+        self.stru_dec = GCN(num_stru_dec_layer, n_hidden, n_hidden, n_hidden,
+                            act)
+        self.attr_dec = GCN(num_attr_dec_layer, n_hidden, n_hidden, n_input,
+                            act)
 
     def forward(self, x, edge_index):
         z = self.enc(x, edge_index)
@@ -38,66 +40,8 @@ class DOMINANT_MODEL(nn.Module):
         stru_recon = torch.mm(stru_z, stru_z.t())
         return stru_recon, attr_recon
 
-    def gen_enc(self):
-        assert self.num_enc_layer >= 0
-        if self.num_enc_layer == 0:
-            return lambda x, edge_index: x
-        module_list = [
-            (
-                GCNConv(self.n_input, self.n_hidden),
-                'x, edge_index -> x',
-            ),
-            self.act(),
-        ]
-        for i in range(self.num_enc_layer - 1):
-            module_list.extend([
-                (
-                    GCNConv(self.n_hidden, self.n_hidden),
-                    'x, edge_index -> x',
-                ),
-                self.act(),
-            ])
-        return Sequential('x, edge_index', module_list)
 
-    def gen_stru_dec(self):
-        assert self.num_stru_dec_layer >= 0
-        if self.num_stru_dec_layer == 0:
-            return lambda x, edge_index: x
-        module_list = []
-        for i in range(self.num_stru_dec_layer):
-            module_list.extend([
-                (
-                    GCNConv(self.n_hidden, self.n_hidden),
-                    'x, edge_index -> x',
-                ),
-                self.act(),
-            ])
-        return Sequential('x, edge_index', module_list)
-
-    def gen_attr_dec(self):
-        assert self.num_attr_dec_layer >= 0
-        if self.num_attr_dec_layer == 0:
-            return lambda x, edge_index: x
-        module_list = []
-        for i in range(self.num_attr_dec_layer - 1):
-            module_list.extend([
-                (
-                    GCNConv(self.n_hidden, self.n_hidden),
-                    'x, edge_index -> x',
-                ),
-                self.act(),
-            ])
-        module_list.extend([
-            (
-                GCNConv(self.n_hidden, self.n_input),
-                'x, edge_index -> x',
-            ),
-            self.act(),
-        ])
-        return Sequential('x, edge_index', module_list)
-
-
-class DOMINANT(OutlierMixin):
+class DOMINANT(BaseDetector):
     def __init__(
         self,
         alpha: float = 0.5,
@@ -111,7 +55,7 @@ class DOMINANT(OutlierMixin):
         contamination: float = 0.1,
         verbose: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__(contamination)
         self.num_enc_layer = num_enc_layer
         self.num_stru_dec_layer = num_stru_dec_layer
         self.num_attr_dec_layer = num_attr_dec_layer
@@ -120,7 +64,6 @@ class DOMINANT(OutlierMixin):
         self.alpha = alpha
         self.epoch = epoch
         self.lr = lr
-        self.contamination = contamination
         self.verbose = verbose
 
     def fit(self, G: Data, y=None):
@@ -132,11 +75,7 @@ class DOMINANT(OutlierMixin):
             self.num_attr_dec_layer,
             self.act,
         )
-        A = torch.sparse_coo_tensor(
-            G.edge_index,
-            torch.ones(G.num_edges),
-            (G.num_nodes, ) * 2,
-        )
+        A = to_dense_adj(G.edge_index, max_num_nodes=G.num_nodes)[0]
         optim = Adam(self.model.parameters(), lr=self.lr)
 
         self.model.train()
@@ -160,17 +99,17 @@ class DOMINANT(OutlierMixin):
                     log += ", AUC={:6f}".format(auc)
                 print(log)
 
-        self.score = self.decision_function(G)
-        self.prediction = predict_by_score(self.score, self.contamination)
+        self.decision_scores_ = self.decision_function(G)
+        self.labels_, self.threshold_ = predict_by_score(
+            self.decision_scores_,
+            self.contamination,
+            True,
+        )
         return self
 
     @torch.no_grad()
     def decision_function(self, G: Data):
-        A = torch.sparse_coo_tensor(
-            G.edge_index,
-            torch.ones(G.num_edges),
-            (G.num_nodes, ) * 2,
-        )
+        A = to_dense_adj(G.edge_index, max_num_nodes=G.num_nodes)[0]
         stru_recon, attr_recon = self.model(G.x, G.edge_index)
         stru_score = torch.square(stru_recon - A).sum(1).sqrt()
         attr_score = torch.square(attr_recon - G.x).sum(1).sqrt()

@@ -4,12 +4,12 @@ from torch.optim import Adam
 from torch_geometric.nn import GCNConv, Sequential
 from torch_geometric.data import Data
 
-from sklearn.base import OutlierMixin
+from pyod.models.base import BaseDetector
 from sklearn.metrics import roc_auc_score
-from util import predict_by_score
+from ..utils import predict_by_score, GCN
 
 
-class OCGNN(OutlierMixin):
+class OCGNN(BaseDetector):
     def __init__(
         self,
         beta: float = 0.1,
@@ -23,7 +23,7 @@ class OCGNN(OutlierMixin):
         contamination: float = 0.1,
         verbose: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__(contamination)
         self.beta = beta
         self.phi = phi
         self.n_hidden = n_hidden
@@ -32,20 +32,17 @@ class OCGNN(OutlierMixin):
         self.epoch = epoch
         self.lr = lr
         self.weight_decay = weight_decay
-        self.contamination = contamination
         self.verbose = verbose
 
     def fit(self, G: Data, y=None):
-        module_list = [(
-            GCNConv(G.num_features, self.n_hidden),
-            'x, edge_index -> x',
-        )]
-        for _ in range(self.n_layers - 1):
-            module_list.extend([
-                self.act(),
-                (GCNConv(self.n_hidden, self.n_hidden), 'x, edge_index -> x'),
-            ])
-        self.model = Sequential('x, edge_index', module_list)
+        self.model = GCN(
+            self.n_layers,
+            G.num_features,
+            self.n_hidden,
+            self.n_hidden,
+            self.act,
+            last_act=False,
+        )
         optimizer = Adam(
             self.model.parameters(),
             lr=self.lr,
@@ -56,6 +53,7 @@ class OCGNN(OutlierMixin):
             r = 0.
             c = self.model(G.x, G.edge_index).mean(0)
 
+        self.model.train()
         for epoch in range(1, self.epoch + 1):
             self.model.train()
             dV = (self.model(G.x, G.edge_index) - c).square().sum(1)
@@ -84,8 +82,12 @@ class OCGNN(OutlierMixin):
             self.r = torch.quantile(dV, 1 - self.beta).item()
             self.c = self.model(G.x, G.edge_index).mean(0)
 
-        self.score = self.decision_function(G)
-        self.prediction = predict_by_score(self.score, self.contamination)
+        self.decision_scores_ = self.decision_function(G)
+        self.labels_, self.threshold_ = predict_by_score(
+            self.decision_scores_,
+            self.contamination,
+            True,
+        )
         return self
 
     @torch.no_grad()

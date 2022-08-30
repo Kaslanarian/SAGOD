@@ -6,7 +6,7 @@ from torch_geometric.utils import to_dense_adj
 
 from pyod.models.base import BaseDetector
 from sklearn.metrics import roc_auc_score
-from util import predict_by_score
+from ..utils import predict_by_score
 
 
 def l21_norm(x: torch.Tensor):

@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 from torch_geometric.data import Data
+from torch_geometric.utils import to_dense_adj
 
-from sklearn.base import OutlierMixin
+from pyod.models.base import BaseDetector
 from sklearn.metrics import roc_auc_score
-from util import predict_by_score
+from ..utils import predict_by_score, MLP
 
 
 class ANOMALOUS_MODEL(nn.Module):
@@ -37,7 +38,7 @@ class ANOMALOUS_MODEL(nn.Module):
         return (term1 + term2 + term3 + term4 - term5) / self.n
 
 
-class ANOMALOUS(OutlierMixin):
+class ANOMALOUS(BaseDetector):
     def __init__(
         self,
         alpha: float = 1.,
@@ -49,14 +50,13 @@ class ANOMALOUS(OutlierMixin):
         contamination: float = 0.1,
         verbose: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__(contamination)
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
         self.phi = phi
         self.epoch = epoch
         self.lr = lr
-        self.contamination = contamination
         self.verbose = verbose
 
     def fit(self, G: Data, y=None):
@@ -69,9 +69,7 @@ class ANOMALOUS(OutlierMixin):
             self.phi,
         )
 
-        A = torch.zeros((G.num_nodes, G.num_nodes))
-        edge_index = G.edge_index
-        A[edge_index[0], edge_index[1]] = 1
+        A = to_dense_adj(G.edge_index, max_num_nodes=G.num_nodes)[0]
         L = torch.diag(A.sum(1)) - A
 
         optim = Adam(self.model.parameters(), lr=self.lr)
@@ -92,18 +90,22 @@ class ANOMALOUS(OutlierMixin):
                     log += ", AUC={:6f}".format(auc)
                 print(log)
 
-        self.score = self.decision_function()
-        self.prediction = predict_by_score(self.score, self.contamination)
+        with torch.no_grad():
+            self.decision_scores_ = self.model.R.square().sum(0).sqrt().numpy()
+        self.labels_, self.threshold_ = predict_by_score(
+            self.decision_scores_,
+            self.contamination,
+            True,
+        )
 
         return self
 
-    @torch.no_grad()
     def decision_function(self, G: Data = None):
         if G is not None:
             print("ANOMALOUS is transductive only!")
-        return self.model.R.square().sum(0).sqrt()
+        return self.decision_scores_
 
     def predict(self, G: Data = None):
         if G is not None:
             print("ANOMALOUS is transductive only!")
-        return self.prediction
+        return self.labels_
