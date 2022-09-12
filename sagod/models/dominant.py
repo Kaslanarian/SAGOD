@@ -81,10 +81,8 @@ class DOMINANT(BaseDetector):
         self.model.train()
         for epoch in range(1, self.epoch + 1):
             stru_recon, attr_recon = self.model(G.x, G.edge_index)
-            stru_error = torch.square((stru_recon - A))
-            attr_error = torch.square((attr_recon - G.x))
-            stru_score = stru_error.sum(1)
-            attr_score = attr_error.sum(1)
+            stru_score = torch.square(stru_recon - A).sum(1)
+            attr_score = torch.square(attr_recon - G.x).sum(1)
             score = (1 - self.alpha) * stru_score + self.alpha * attr_score
             loss = score.mean()
 

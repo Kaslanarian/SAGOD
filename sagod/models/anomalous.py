@@ -6,7 +6,7 @@ from torch_geometric.utils import to_dense_adj
 
 from pyod.models.base import BaseDetector
 from sklearn.metrics import roc_auc_score
-from ..utils import predict_by_score, MLP
+from ..utils import predict_by_score
 
 
 class ANOMALOUS_MODEL(nn.Module):
@@ -35,7 +35,7 @@ class ANOMALOUS_MODEL(nn.Module):
         term3 = self.beta * self.W.square().sum(0).sqrt().sum()
         term4 = self.gamma * self.R.square().sum(0).sqrt().sum()
         term5 = self.phi * torch.trace(self.R @ laplacian @ self.R.T)
-        return (term1 + term2 + term3 + term4 - term5) / self.n
+        return (term1 + term2 + term3 + term4 + term5) / self.n
 
 
 class ANOMALOUS(BaseDetector):

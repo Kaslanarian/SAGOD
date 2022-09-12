@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name='sagod',
-    version='0.0.1',
+    version='0.0.2',
     description='SAGOD : Static Attributed Graph Outlier Detection',
     author="Welt Xing",
     author_email="xingcy@smail.nju.edu.cn",

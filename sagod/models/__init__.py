@@ -8,3 +8,7 @@ from .gaan import GAAN
 from .ocgnn import OCGNN
 from .one import ONE
 from .radar import Radar
+from .sadag import SADAG
+from .deepae import DeepAE
+from .comga import ComGA
+from .resgcn import ResGCN
