@@ -75,7 +75,6 @@ Though SAGOD is similar to PyGOD, we keep innovating and improving:
 - Support batch mechanism and huge graph input;
 - Support GPU;
 - More models implementation;
-- Annotation and manual;
 - ...
 
 ## Reference
