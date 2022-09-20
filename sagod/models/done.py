@@ -46,6 +46,41 @@ class DONE_MODEL(nn.Module):
 
 
 class DONE(BaseDetector):
+    '''
+    Interface of "Deep Outlier Outlier Aware Network Embedding"(DONE) model.
+    
+    Parameters
+    ----------
+    embed_dim : int, default=16
+        Embedding dimension of model.
+    n_hidden : Union[List[int], Tuple[int], int], default=32
+        Size of hidden layers. `n_hidden` can be list or tuple of `int`, or just `int`, which means all hidden layers has same size.
+    n_layers : int, default=4
+        Number of network layers, which contains encoder and decoder. So it better be even.
+    act : default=nn.LeakyReLU
+        Activation function of each layer. Class name should be pass just like the default parameter `nn.LeakyReLU`.
+    a1 : float, default=0.2
+        The weight of structural proximity loss.
+    a2 : float, default=0.2
+        The weight of structural homophily loss.
+    a3 : float, default=0.2
+        The weight of attributed proximity loss.
+    a4 : float, default=0.2
+        The weight of attributed homophily loss.
+    a5 : float, default=0.2
+        The weight of combined loss.
+    lr : float, default=0.005
+        The learning rate of optimizer (Adam).
+    weight_decay : float, default=0.
+        The weight decay parameter of optimizer (Adam).
+    epoch : int, default=10
+        Training epoches of DONE.
+    verbose : bool, default=False
+        Whether to print training log, including training epoch and training loss (and ROC_AUC if pass label when fitting model).
+    contamination : float in (0., 0.5), optional (default=0.1)
+        The amount of contamination of the data set,
+        i.e. the proportion of outliers in the data set. Used when fitting to define the threshold on the decision function.
+    '''
     def __init__(
         self,
         embed_dim: int = 16,
@@ -57,10 +92,11 @@ class DONE(BaseDetector):
         a3: float = 0.2,
         a4: float = 0.2,
         a5: float = 0.2,
-        contamination: float = 0.1,
         lr: float = 0.005,
+        weight_decay: float = 0.,
         epoch: int = 10,
         verbose: bool = False,
+        contamination: float = 0.1,
     ) -> None:
         super().__init__(contamination)
         self.embed_dim = embed_dim
@@ -76,6 +112,7 @@ class DONE(BaseDetector):
         self.a4 = a4
         self.a5 = a5
         self.lr = lr
+        self.weight_decay = weight_decay
         self.epoch = epoch
         self.verbose = verbose
 
@@ -93,7 +130,11 @@ class DONE(BaseDetector):
             self.act,
         )
 
-        optimizer = Adam(self.model.parameters(), lr=self.lr)
+        optimizer = Adam(
+            self.model.parameters(),
+            lr=self.lr,
+            weight_decay=self.weight_decay,
+        )
 
         self.model.train()
         for epoch in range(1, self.epoch + 1):

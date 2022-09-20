@@ -7,11 +7,8 @@ from torch_geometric.utils import to_dense_adj
 
 from pyod.models.base import BaseDetector
 from sklearn.metrics import roc_auc_score
-from ..utils import predict_by_score
+from ..utils import predict_by_score, l21_norm
 
-
-def l21_norm(x: torch.Tensor):
-    return x.square().sum(1).sqrt().sum()
 
 
 class Radar_MODEL:
@@ -55,14 +52,32 @@ class Radar_MODEL(nn.Module):
 
 
 class Radar(BaseDetector):
+    '''
+    Interface of "Residual Anlysis for Anomaly Detection in Attributed Networks"(Radar) model. The original paper provide a well-designed optimization rule and we use it.
+
+    Parameters
+    ----------
+    alpha : float, default=1.
+        The weight to control the row sparsity of W.
+    beta : float, default=1.
+        The weight to control the row sparsity of R.
+    gamma : float, default=1.
+        The weight of control correlation between network structure and node attributes.
+    epoch : int, default=100
+        Training epoches of Radar.
+    verbose : bool, default=False
+        Whether to print training log, including training epoch and training loss (and ROC_AUC if pass label when fitting model).
+    contamination : float in (0., 0.5), optional (default=0.1)
+        The amount of contamination of the data set, i.e. the proportion of outliers in the data set. Used when fitting to define the threshold on the decision function.
+    '''
     def __init__(
         self,
         alpha: float = 1.,
         beta: float = 1.,
         gamma: float = 1.,
         epoch: int = 100,
-        contamination: float = 0.1,
         verbose: bool = False,
+        contamination: float = 0.1,
     ):
         super().__init__(contamination)
         self.alpha = alpha

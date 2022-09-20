@@ -8,7 +8,7 @@ from torch_geometric.nn import GCNConv, Sequential
 
 def struct_ano_injection(G: Data, n: int, m: int):
     '''
-    结构异常注入，选择mn个节点，形成n个簇，每个簇有m个节点.
+    Structural anomaly injection. We choose m*n nodes to form m clusters. Each cluster has n nodes.
     '''
     ano_index = np.random.choice(G.num_nodes, m * n, replace=False)
     edge_index = G.edge_index.numpy().T.tolist()
@@ -27,8 +27,9 @@ def struct_ano_injection(G: Data, n: int, m: int):
 
 def attr_ano_injection(G: Data, p: int, k: int = 50):
     '''
-    属性异常注入，选择p个节点为属性异常点，对每个节点随机选择k个点，
-    欧氏距离最大的点对应属性进行覆盖.
+    Attibuted anomaly injection. 
+    We randomly choose a point x_i waited to be injected and set C with k points for p times,
+    and conduct 
     '''
     ano_index = np.random.choice(G.num_nodes, p, replace=False)
     G.y[ano_index] = 1
@@ -113,3 +114,7 @@ def GCN(
     if not last_act:
         module_list.pop()
     return Sequential('x, edge_index', module_list)
+
+
+def l21_norm(x: torch.Tensor):
+    return x.square().sum(1).sqrt().sum()

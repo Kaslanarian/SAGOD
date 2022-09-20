@@ -2,11 +2,12 @@ import torch
 from torch_geometric.datasets import TUDataset
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
+from torch_geometric.utils import add_self_loops
 import numpy as np
 from sagod.utils import *
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve
-from sagod import (
+from sagod.models import (
     DOMINANT,
     ANOMALOUS,
     AnomalyDAE,
@@ -28,6 +29,7 @@ np.random.seed(42)
 
 dataset = TUDataset('../data', 'MUTAG')
 data: Data = list(DataLoader(dataset, batch_size=188, shuffle=True))[0]
+data.edge_index = add_self_loops(data.edge_index)[0]
 data.y = torch.zeros(data.num_nodes)
 data.x[data.x == 0.] = 1e-5
 data = struct_ano_injection(data, 10, 15)
@@ -60,7 +62,7 @@ model = OCGNN(verbose=verbose, epoch=100).fit(data, data.y)
 plt.plot(*roc_curve(data.y.numpy(), model.decision_scores_)[:2], label='OCGNN')
 
 print("ONE:")
-model = ONE(5, verbose=verbose, iter=3).fit(data, data.y)
+model = ONE(5, verbose=verbose, epoch=3).fit(data, data.y)
 plt.plot(*roc_curve(data.y.numpy(), model.decision_scores_)[:2], label='ONE')
 
 print("DONE:")
@@ -81,12 +83,12 @@ model = AdONE(4,
               n_layers=6).fit(data, data.y)
 plt.plot(*roc_curve(data.y.numpy(), model.decision_scores_)[:2], label='AdONE')
 
-plt.legend()
-plt.subplot(1, 2, 2)
-
 print("ALARM:")
 model = ALARM([2, 2, 3], verbose=True).fit(data, data.y)
 plt.plot(*roc_curve(data.y.numpy(), model.decision_scores_)[:2], label='ALARM')
+
+plt.legend()
+plt.subplot(1, 2, 2)
 
 print("GAAN:")
 model = GAAN(verbose=verbose, n_noise=3, n_enc_layers=3,
@@ -112,7 +114,7 @@ plt.plot(*roc_curve(data.y.numpy(), model.decision_scores_)[:2],
          label='DeepAE')
 
 print("ComGA:")
-model = ComGA(verbose=True, lr=0.01, epoch=100, n_embed=64).fit(data, data.y)
+model = ComGA(verbose=True, lr=0.01, epoch=100, embed_dim=64).fit(data, data.y)
 plt.plot(*roc_curve(data.y.numpy(), model.decision_scores_)[:2], label='ComGA')
 
 print("ResGCN:")

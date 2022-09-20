@@ -1,37 +1,64 @@
 import torch
 import torch.nn as nn
 from torch.optim import Adam
-from torch_geometric.nn import GCNConv, Sequential
 from torch_geometric.data import Data
 
 from pyod.models.base import BaseDetector
 from sklearn.metrics import roc_auc_score
+from typing import Union, List, Tuple
 from ..utils import predict_by_score, GCN
 
 
 class OCGNN(BaseDetector):
+    '''
+    Interface of "One-Clas Graph Neural Network"(OCGNN) model.
+    
+    Parameters
+    ----------
+    n_hidden : Union[List[int], Tuple[int], int], default=64
+        Size of hidden layers. `n_hidden` can be list or tuple of `int`, or just `int`, which means all hidden layers has same size.
+    n_layers : int, default=4
+        Number of GCN layers.
+    act : default=nn.ReLU
+        Activation function of each layer. Class name should be pass just like the default parameter `nn.ReLU`.
+    beta : float, default=0.1
+        The parameter for controling the radius of hyper-sphere.
+    phi : int, defaul=10
+        OCGNN update the radius and center of hypersphere each phi epoches.
+    lr : float, default=0.001
+        The learning rate of optimizer (Adam).
+    weight_decay : float, default=1e-4.
+        The weight decay parameter of optimizer (Adam).
+    epoch : int, default=100
+        Training epoches of OCGNN.
+    verbose : bool, default=False
+        Whether to print training log, including training epoch and training loss (and ROC_AUC if pass label when fitting model).
+    contamination : float in (0., 0.5), optional (default=0.1)
+        The amount of contamination of the data set,
+        i.e. the proportion of outliers in the data set. Used when fitting to define the threshold on the decision function.
+    '''
     def __init__(
         self,
-        beta: float = 0.1,
-        phi: int = 10,
-        n_hidden: int = 64,
+        n_hidden: Union[List[int], Tuple[int], int] = 64,
         n_layers: int = 4,
         act=nn.ReLU,
-        epoch: int = 100,
+        beta: float = 0.1,
+        phi: int = 10,
         lr: float = 0.001,
         weight_decay: float = 1e-4,
-        contamination: float = 0.1,
+        epoch: int = 100,
         verbose: bool = False,
+        contamination: float = 0.1,
     ) -> None:
         super().__init__(contamination)
-        self.beta = beta
-        self.phi = phi
         self.n_hidden = n_hidden
         self.n_layers = n_layers
         self.act = act
-        self.epoch = epoch
+        self.beta = beta
+        self.phi = phi
         self.lr = lr
         self.weight_decay = weight_decay
+        self.epoch = epoch
         self.verbose = verbose
 
     def fit(self, G: Data, y=None):

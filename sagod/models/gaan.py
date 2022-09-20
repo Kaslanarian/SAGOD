@@ -44,6 +44,35 @@ class GAAN_MODEL(nn.Module):
 
 
 class GAAN(BaseDetector):
+    '''
+    Interface of "Generative Adversarial Attributed Network"(GAAN) model.
+
+    Parameters
+    ----------
+    n_noise : int, default=16
+        The dimension of generated noise.
+    n_hidden : int, default=64
+        Size of hidden layers.
+    n_gen_layers : int, default=2
+        Number of generator layers.
+    n_enc_layers : int, default=2
+        Number of encoder layers.
+    act : default=nn.ReLU
+        Activation function of each layer. Class name should be pass just like the default parameter `nn.ReLU`.
+    alpha : float, default=0.5
+        The weight to control the relative importance of context reconstruction loss LG (alpha) and a structure discriminator loss LD (1-alpha).
+    lr : float, default=0.001
+        The learning rate of optimizer (Adam).
+    weight_decay : float, default=0.
+        The weight decay parameter of optimizer (Adam).
+    epoch : int, default=5
+        Training epoches of AdONE.
+    verbose : bool, default=False
+        Whether to print training log, including training epoch and training loss (and ROC_AUC if pass label when fitting model).
+    contamination : float in (0., 0.5), optional (default=0.1)
+        The amount of contamination of the data set,
+        i.e. the proportion of outliers in the data set. Used when fitting to define the threshold on the decision function.
+    '''
     def __init__(
         self,
         n_noise: int = 16,
@@ -52,10 +81,11 @@ class GAAN(BaseDetector):
         n_enc_layers: int = 2,
         act=nn.ReLU,
         alpha: float = 0.5,
-        contamination: float = 0.1,
         lr: float = 0.001,
+        weight_decay: float = 0.,
         epoch: int = 5,
         verbose: bool = False,
+        contamination: float = 0.1,
     ):
         super().__init__(contamination)
         self.n_noise = n_noise
@@ -65,6 +95,7 @@ class GAAN(BaseDetector):
         self.act = act
         self.alpha = alpha
         self.lr = lr
+        self.weight_decay = weight_decay
         self.epoch = epoch
         self.verbose = verbose
 
@@ -79,8 +110,16 @@ class GAAN(BaseDetector):
             self.act,
         )
 
-        optimizer1 = Adam(self.model.generator.parameters(), lr=self.lr)
-        optimizer2 = Adam(self.model.encoder.parameters(), lr=self.lr)
+        optimizer1 = Adam(
+            self.model.generator.parameters(),
+            lr=self.lr,
+            weight_decay=self.weight_decay,
+        )
+        optimizer2 = Adam(
+            self.model.encoder.parameters(),
+            lr=self.lr,
+            weight_decay=self.weight_decay,
+        )
 
         for epoch in range(1, self.epoch + 1):
             gaussian_noise = torch.randn(G.num_nodes, self.n_noise)

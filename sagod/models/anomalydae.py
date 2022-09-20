@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
 from torch.optim import Adam
-from torch_geometric.nn import GATConv, Sequential
+from torch_geometric.nn import GATConv
 from torch_geometric.data import Data
 from torch_geometric.utils import to_dense_adj
 
 from pyod.models.base import BaseDetector
 from sklearn.metrics import roc_auc_score
+from typing import Union, List, Tuple
 from ..utils import predict_by_score, GCN, MLP
 
 
@@ -42,35 +43,66 @@ class AnomalyDAE_MODEL(nn.Module):
 
 
 class AnomalyDAE(BaseDetector):
+    '''
+    Interface of "Dual Autoencoder For Anomaly Detection On Attributed Networks"(AnomalyDAE) model.
+
+    Parameters
+    ----------
+    embed_dim : int, default=16
+        Embedding dimension of model.
+    n_hidden : int, default=64
+        Size of the hidden layer.
+    act : default=nn.ReLU
+        Activation function of each layer. Class name should be pass just like the default parameter `nn.ReLU`.
+    alpha : float, default=0.5
+        The weight of structural anomaly score, 1-alpha is the weight of attributed anomaly score correspondingly.
+    thera : float, default=1.1
+        Hyper-parameter used to impose more penalty to the structrual reconstruction error of the non-zero elements.
+    eta : float, default=1.1
+        Hyper-parameter used to impose more penalty to the attributed reconstruction error of the non-zero elements.
+    lr : float, default=0.005
+        The learning rate of optimizer (Adam).
+    weight_decay : float, default=0.
+        The weight decay parameter of optimizer (Adam).
+    epoch : int, default=100
+        Training epoches of AnomalyDAE.
+    verbose : bool, default=False
+        Whether to print training log, including training epoch and training loss (and ROC_AUC if pass label when fitting model).
+    contamination : float in (0., 0.5), optional (default=0.1)
+        The amount of contamination of the data set,
+        i.e. the proportion of outliers in the data set. Used when fitting to define the threshold on the decision function.
+    '''
     def __init__(
         self,
+        embed_dim: int = 8,
+        n_hidden: int = 64,
+        act=nn.ReLU,
         alpha: float = 0.5,
         theta: float = 1.1,
         eta: float = 1.1,
-        hidden_size: int = 64,
-        embed_dim: int = 8,
-        act=nn.ReLU,
-        epoch: int = 100,
         lr: float = 0.005,
-        contamination: float = 0.1,
+        weight_decay: float = 0.,
+        epoch: int = 100,
         verbose: bool = False,
+        contamination: float = 0.1,
     ) -> None:
         super().__init__(contamination)
+        self.embed_dim = embed_dim
+        self.n_hidden = n_hidden
+        self.act = act
         self.alpha = alpha
         self.theta = theta
         self.eta = eta
-        self.hidden_size = hidden_size
-        self.embed_dim = embed_dim
-        self.act = act
-        self.epoch = epoch
         self.lr = lr
+        self.weight_decay = weight_decay
+        self.epoch = epoch
         self.verbose = verbose
 
     def fit(self, G: Data, y=None):
         self.model = AnomalyDAE_MODEL(
             G.num_nodes,
             G.num_node_features,
-            self.hidden_size,
+            self.n_hidden,
             self.embed_dim,
             self.act,
         )
@@ -81,7 +113,11 @@ class AnomalyDAE(BaseDetector):
         Eta = torch.ones_like(G.x)
         Eta[G.x != 0] = self.eta
 
-        optim = Adam(self.model.parameters(), lr=self.lr)
+        optim = Adam(
+            self.model.parameters(),
+            lr=self.lr,
+            weight_decay=self.weight_decay,
+        )
 
         self.model.train()
         for epoch in range(1, self.epoch + 1):

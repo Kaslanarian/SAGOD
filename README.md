@@ -46,7 +46,7 @@ python3 setup.py install
 Here is an example to use SAGOD:
 
 ```python
-from sagod import DOMINANT
+from sagod.models import DOMINANT
 from sagod.utils import struct_ano_injection, attr_ano_injection
 
 data = ... # Graph data, type:torch_geometric.data.Data

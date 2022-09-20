@@ -7,6 +7,7 @@ from torch_geometric.utils import to_dense_adj
 
 from pyod.models.base import BaseDetector
 from sklearn.metrics import roc_auc_score
+from typing import Union, List, Tuple
 from ..utils import predict_by_score, GCN, MLP
 
 
@@ -17,7 +18,7 @@ class ComGA_MODEL(nn.Module):
         num_features: int,
         n_layers: int,
         n_hidden: int,
-        n_embed: int,
+        embed_dim: int,
         act: nn.Module,
     ) -> None:
         super().__init__()
@@ -25,27 +26,27 @@ class ComGA_MODEL(nn.Module):
         self.num_features = num_features
         self.n_layers = n_layers
         self.n_hidden = n_hidden
-        self.n_embed = n_embed
+        self.embed_dim = embed_dim
         self.act = act
 
         self.aeEnc = MLP(
             n_layers,
             num_nodes,
             n_hidden,
-            n_embed,
+            embed_dim,
             act,
         )
         self.aeDec = MLP(
             n_layers,
-            n_embed,
+            embed_dim,
             n_hidden,
             num_nodes,
             act,
         )
 
-        n_per_layer = [num_features] + ([n_hidden] * max(n_layers - 1, 0)
-                                        if type(n_hidden) not in {list, tuple}
-                                        else n_hidden) + [n_embed, n_embed]
+        n_per_layer = [num_features] + (
+            [n_hidden] * max(n_layers - 1, 0) if type(n_hidden)
+            not in {list, tuple} else n_hidden) + [embed_dim, embed_dim]
         self.tGCN = []
         for i in range(len(n_per_layer) - 1):
             s = Sequential('x, edge_index', [
@@ -60,7 +61,7 @@ class ComGA_MODEL(nn.Module):
 
         self.attrDec = GCN(
             1,
-            n_embed,
+            embed_dim,
             ...,
             num_features,
             act,
@@ -84,48 +85,82 @@ class ComGA_MODEL(nn.Module):
 
 
 class ComGA(BaseDetector):
+    '''
+    Interface of "Community-aware attributed graph anomaly detection framework"(ComGA) model.
+
+    Parameters
+    ----------
+    embed_dim : int, default=32
+        Embedding dimension of model.
+    n_hidden : Union[List[int], Tuple[int], int], default=128
+        Size of hidden layers. `n_hidden` can be list or tuple of `int`, or just `int`, which means all hidden layers has same size.
+    n_layers : int, default=3
+        Number of network layers.
+    act : default=nn.ReLU
+        Activation function of each layer. Class name should be pass just like the default parameter `nn.ReLU`.
+    alpha : float, default=0.5
+        The weight of structural anomaly score, 1-alpha is the weight of attributed anomaly score correspondingly.
+    lr : float, default=0.005
+        The learning rate of optimizer (Adam).
+    weight_decay : float, default=0.
+        The weight decay parameter of optimizer (Adam).
+    epoch : int, default=100
+        Training epoches of ComGA.
+    verbose : bool, default=False
+        Whether to print training log, including training epoch and training loss (and ROC_AUC if pass label when fitting model).
+    contamination : float in (0., 0.5), optional (default=0.1)
+        The amount of contamination of the data set,
+        i.e. the proportion of outliers in the data set. Used when fitting to
+        define the threshold on the decision function.
+    '''
     def __init__(
         self,
-        alpha: int = 0.5,
-        num_layers: int = 3,
-        n_hidden: int = 128,
-        n_embed: int = 32,
+        embed_dim: int = 32,
+        n_hidden: Union[List[int], Tuple[int], int] = 128,
+        n_layers: int = 3,
         act=nn.ReLU,
-        epoch: int = 100,
+        alpha: int = 0.5,
         lr: float = 0.005,
-        contamination: float = 0.1,
+        weight_decay: float = 0.,
+        epoch: int = 100,
         verbose: bool = False,
+        contamination: float = 0.1,
     ):
         super().__init__(contamination)
         self.alpha = alpha
-        self.num_layers = num_layers
+        self.n_layers = n_layers
         self.n_hidden = n_hidden
-        self.n_embed = n_embed
+        self.embed_dim = embed_dim
         self.act = act
-        self.epoch = epoch
         self.lr = lr
+        self.weight_decay = weight_decay
+        self.epoch = epoch
         self.verbose = verbose
 
     def fit(self, G: Data, y=None):
         self.model = ComGA_MODEL(
             G.num_nodes,
             G.num_features,
-            self.num_layers,
+            self.n_layers,
             self.n_hidden,
-            self.n_embed,
+            self.embed_dim,
             self.act,
         )
         A = to_dense_adj(G.edge_index, max_num_nodes=G.num_nodes)[0]
         K = A.sum(1)
         B = A - K.reshape(-1, 1) * K / K.sum()
-        optimizer = Adam(self.model.parameters(), lr=self.lr)
+        optimizer = Adam(
+            self.model.parameters(),
+            lr=self.lr,
+            weight_decay=self.weight_decay,
+        )
         kl_loss = nn.KLDivLoss(reduction='sum')
 
         for epoch in range(1, self.epoch + 1):
             A_hat, B_hat, X_hat, H, Z = self.model(G.x, G.edge_index, B)
             stru_score = (A - A_hat).square().sum(1)
             attr_score = (G.x - X_hat).square().sum(1)
-            score = (1 - self.alpha) * stru_score + self.alpha * attr_score
+            score = self.alpha * stru_score + (1 - self.alpha) * attr_score
 
             L_res = (B - B_hat).square().mean()
             L_gui = kl_loss(
@@ -162,7 +197,7 @@ class ComGA(BaseDetector):
         A_hat, _, X_hat, _, _ = self.model(G.x, G.edge_index, B)
         stru_score = (A - A_hat).square().sum(1)
         attr_score = (G.x - X_hat).square().sum(1)
-        score = (1 - self.alpha) * stru_score + self.alpha * attr_score
+        score = self.alpha * stru_score + (1 - self.alpha) * attr_score
         return score.numpy()
 
     def predict(self, G: Data):

@@ -9,6 +9,33 @@ from ..utils import predict_by_score
 
 
 class ONE(BaseDetector):
+    '''
+    Interface of "Outlier Outlier Aware Network Embedding"(ONE) model. The is a non-deep model. We use numpy to implement it.
+
+    Parameters
+    ----------
+    K : int, default=36
+        Embedding dimension of node. K must less than min(N, D), where N is the number of nodes and D is the number of node features.
+    alpha : float, default=1.
+        The weight of structural loss.
+    beta : float, default=1.
+        The weight of attributed loss.
+    gamma : float, default=1.
+        The weight of disagreement loss.
+    mu : float, default=1.
+        A constant to control the sum of anomaly scores.
+    epoch : int, default=10
+        The number of updating parameters.
+    nmf_iter : int, default=1000
+        The iteration number of non-negative matrix factorization.
+    random_state : default=None
+        Random state.
+    verbose : bool, default=False
+        Whether to print training log, including training epoch and training loss (and ROC_AUC if pass label when fitting model).
+    contamination : float in (0., 0.5), optional (default=0.1)
+        The amount of contamination of the data set,
+        i.e. the proportion of outliers in the data set. Used when fitting to define the threshold on the decision function.
+    '''
     def __init__(
         self,
         K: int = 36,
@@ -16,11 +43,11 @@ class ONE(BaseDetector):
         beta: float = 1.,
         gamma: float = 1.,
         mu: float = 1.,
-        iter: int = 10,
+        epoch: int = 10,
         nmf_iter: int = 1000,
-        contamination: float = 0.1,
         random_state=None,
         verbose: bool = False,
+        contamination: float = 0.1,
     ) -> None:
         super().__init__(contamination)
         self.K = K
@@ -28,7 +55,7 @@ class ONE(BaseDetector):
         self.beta = beta
         self.gamma = gamma
         self.mu = mu
-        self.iter = iter
+        self.epoch = epoch
         self.nmf_iter = nmf_iter
         self.random_state = random_state
         self.verbose = verbose
@@ -54,7 +81,7 @@ class ONE(BaseDetector):
         U, V = model.fit_transform(C), model.components_
         O = np.full((3, N), 1 / N)
 
-        for epoch in range(1, self.iter + 1):
+        for epoch in range(1, self.epoch + 1):
             logO = -np.log(O)
             logOs = np.hsplit(logO.T, 3)
             scale = np.sqrt(logOs[2])

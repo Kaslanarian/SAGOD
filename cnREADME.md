@@ -30,7 +30,7 @@ SAGOD (**S**tatic **A**ttributed **G**raph **O**utlier **D**etection) 是基于[
 下面是SAGOD的使用例:
 
 ```python
-from sagod import DOMINANT
+from sagod.models import DOMINANT
 from sagod.utils import struct_ano_injection, attr_ano_injection
 
 data = ... # 获取图数据，即torch_geometric.data.Data类型

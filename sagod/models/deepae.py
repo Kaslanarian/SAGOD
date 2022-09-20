@@ -2,12 +2,13 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 from torch_geometric.data import Data
-from torch_geometric.utils import to_dense_adj
+from torch_geometric.utils import to_dense_adj, add_self_loops
 from torch_geometric.nn.conv.gcn_conv import GCNConv, gcn_norm
 
 from functools import partial
 from sklearn.metrics import roc_auc_score
 from pyod.models.base import BaseDetector
+from typing import Union, List, Tuple
 from ..utils import GCN, predict_by_score
 
 
@@ -79,22 +80,22 @@ class SharpenGCN(GCNConv):
 class DeepAE_MODEL(nn.Module):
     def __init__(
         self,
-        num_layers: int,
+        n_layers: int,
         n_input: int,
         n_hidden: int,
         gamma=0.5,
         act=nn.ReLU,
     ) -> None:
         super().__init__()
-        self.num_layers = num_layers
+        self.n_layers = n_layers
         self.n_input = n_input
         self.n_hidden = n_hidden
         self.gamma = gamma
         self.act = act
 
-        self.encoder = GCN(num_layers, n_input, n_hidden, n_hidden, act)
+        self.encoder = GCN(n_layers, n_input, n_hidden, n_hidden, act)
         self.decoder = GCN(
-            num_layers,
+            n_layers,
             n_hidden,
             n_hidden,
             n_input,
@@ -108,43 +109,72 @@ class DeepAE_MODEL(nn.Module):
 
 
 class DeepAE(BaseDetector):
+    '''
+    Interface of "Deep Graph Autoencoders on Attributed Networks"(DeepAE) model.
+    
+    Parameters
+    ----------
+    n_hidden : Union[List[int], Tuple[int], int], default=32
+        Size of hidden layers. `n_hidden` can be list or tuple of `int`, or just `int`, which means all hidden layers has same size.
+    n_layers : int, default=2
+        Number of network layers.
+    act : default=nn.ReLU
+        Activation function of each layer. Class name should be pass just like the default parameter `nn.ReLU`.
+    gamma : float=0.5
+        The parameter for sharpen GCN. When `alpha`=1, Sharpen GCM becomes normal GCN.
+    lr : float, default=0.005
+        The learning rate of optimizer (Adam).
+    weight_decay : float, default=0.
+        The weight decay parameter of optimizer (Adam).
+    epoch : int, default=100
+        Training epoches of DeepAE.
+    verbose : bool, default=False
+        Whether to print training log, including training epoch and training loss (and ROC_AUC if pass label when fitting model).
+    contamination : float in (0., 0.5), optional (default=0.1)
+        The amount of contamination of the data set,
+        i.e. the proportion of outliers in the data set. Used when fitting to
+        define the threshold on the decision function.
+    '''
     def __init__(
         self,
+        n_hidden: Union[List[int], Tuple[int], int] = 32,
+        n_layers: int = 2,
+        act=nn.ReLU,
         beta: float = 1.,
         gamma: float = 0.5,
-        num_layers: int = 2,
-        n_hidden: int = 32,
-        act: nn.Module = nn.ReLU,
-        epoch: int = 100,
         lr: float = 0.001,
-        contamination=0.1,
+        weight_decay: float = 0.,
+        epoch: int = 100,
         verbose=False,
+        contamination=0.1,
     ):
         super().__init__(contamination)
         self.beta = beta
         self.gamma = gamma
-        self.num_layers = num_layers
+        self.n_layers = n_layers
         self.n_hidden = n_hidden
         self.act = act
-        self.epoch = epoch
         self.lr = lr
+        self.weight_decay = weight_decay
+        self.epoch = epoch
         self.verbose = verbose
 
     def fit(self, G: Data, y=None):
         self.model = DeepAE_MODEL(
-            self.num_layers,
+            self.n_layers,
             G.num_features,
             self.n_hidden,
             self.gamma,
             self.act,
         )
         X = G.x
-        A = to_dense_adj(
-            G.edge_index,
-            max_num_nodes=G.num_nodes,
-        )[0]
+        A = to_dense_adj(G.edge_index, max_num_nodes=G.num_nodes)[0]
 
-        optimizer = Adam(self.model.parameters(), lr=self.lr)
+        optimizer = Adam(
+            self.model.parameters(),
+            lr=self.lr,
+            weight_decay=self.weight_decay,
+        )
 
         for epoch in range(1, self.epoch + 1):
             H, X_hat = self.model(X, G.edge_index)
