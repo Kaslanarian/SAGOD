@@ -77,6 +77,17 @@ Though SAGOD is similar to PyGOD, we keep innovating and improving:
 - More models implementation;
 - ...
 
+## Citation
+
+```
+@Misc{xing2022sagod,
+    author = {Xing, Cunyuan},
+    title = {{SAGOD}: A library fir static sttributed graph outlier detection},
+    year = {2022},
+    url = " https://github.com/Kaslanarian/SAGOD"
+}
+```
+
 ## Reference
 
 - Bandyopadhyay, Sambaran, Saley Vishal Vivek, and M. N. Murty. ["Outlier resistant unsupervised deep architectures for attributed network embedding."](paper/done&adone.pdf) Proceedings of the 13th international conference on web search and data mining. 2020.
