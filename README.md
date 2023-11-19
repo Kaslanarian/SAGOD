@@ -82,7 +82,7 @@ Though SAGOD is similar to PyGOD, we keep innovating and improving:
 ```
 @Misc{xing2022sagod,
     author = {Xing, Cunyuan},
-    title = {{SAGOD}: A library fir static sttributed graph outlier detection},
+    title = {{SAGOD}: A library for static sttributed graph outlier detection},
     year = {2022},
     url = " https://github.com/Kaslanarian/SAGOD"
 }
